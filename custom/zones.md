@@ -48,8 +48,9 @@ after a restart), since existing tags are sticky.
 
 Default assignments: 1 meeting `us.zoom.xos` · 2 note `md.obsidian` · 3 cat `com.tinyspeck.slackmacgap` · 4 duck `com.github.wez.wezterm` · 5 web `com.kagi.kagimacOS` · 6 ai `com.anthropic.claudefordesktop`,`com.openai.chat`.
 
-> The SketchyBar plugin (`~/dotfiles/system/sketchybar/plugins/zones.sh`) hardcodes the same map
-> independently — if you change `bundleAssignments` here, mirror it there so the bar matches.
+> The SketchyBar plugin (`~/dotfiles/system/sketchybar/plugins/zones.sh`) reads this same
+> `zones.json` (via `jq`) for both the zone id (definitions name→id) and the app→zone map — so it's
+> the single source of truth; edits here update the bar on its next refresh.
 
 ## Enable & use
 ```toml
