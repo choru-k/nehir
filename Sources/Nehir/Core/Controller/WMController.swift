@@ -394,6 +394,23 @@ final class WMController {
         } else {
             f15Tap.remove()
         }
+
+        writePermissionStatus()
+    }
+
+    /// Write a tiny ~/.local/state/nehir/permissions.json so external tools (the SketchyBar
+    /// permissions indicator) can see whether TCC grants are in place — re-signed ad-hoc builds
+    /// drop them. No IPC query needed; this is read-only state for whoever wants it.
+    private func writePermissionStatus() {
+        let status: [String: Bool] = [
+            "accessibility": accessibilityPermissionGranted,
+            "inputMonitoring": CGPreflightListenEventAccess(),
+            "inputMonitoringNeeded": settings.f15Enabled
+        ]
+        let dir = NehirStoragePaths.live.stateDirectory
+        guard let data = try? JSONSerialization.data(withJSONObject: status, options: [.sortedKeys]) else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? data.write(to: dir.appendingPathComponent("permissions.json"), options: .atomic)
     }
 
     func setGapSize(_ size: Double) {
