@@ -115,7 +115,11 @@ struct ZoneEngine {
         state.focusedWindowIDByZone = state.focusedWindowIDByZone
             .filter { currentIDs.contains($0.value) && isValidZoneID($0.key) }
 
-        for window in windows {
+        // Initial placement only: a bundle assignment decides a window's zone the first time we
+        // see it (untagged). After that the tag is sticky and independent of the app — so a manual
+        // move-window-to-zone persists, and zones aren't re-forced every cycle. A reopened app gets
+        // a fresh window id, so it lands in its configured zone again.
+        for window in windows where state.windowZoneTags[window.id] == nil {
             guard let zoneID = config.bundleAssignments[window.bundleID], isValidZoneID(zoneID) else { continue }
             state.windowZoneTags[window.id] = zoneID
             state.positionInferredWindowIDs.remove(window.id)

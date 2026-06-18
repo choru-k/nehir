@@ -552,6 +552,19 @@ enum NiriWindowMoveResult {
             }
         }
 
+        // Auto-arrange the strip into zone order when new windows arrive (no-op if zones
+        // disabled or already sorted). reconciledOrder gates on config.enabled internally.
+        if !newTokens.isEmpty, let controller {
+            pass.engine.applyZoneOrdering(
+                zoneEngine: &controller.zoneEngine,
+                in: pass.wsId,
+                motion: motion,
+                state: &state,
+                workingFrame: pass.insetFrame,
+                gaps: pass.gap
+            )
+        }
+
         return newTokens
     }
 

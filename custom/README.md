@@ -15,6 +15,8 @@ f15Enabled = true
 zonesEnabled = true
 # f15DoubleTapSeconds = 0.3   # optional
 ```
-The leader tree lives in its own file: `~/.config/nehir/leader.json` (seeded on first run).
+Structured custom-feature config lives in its own JSON file (seeded on first run):
+- `~/.config/nehir/leader.json` — the leader tree.
+- `~/.config/nehir/zones.json` — the app→zone map (`bundleAssignments`) + zone names.
 
 After enabling F15, grant **Input Monitoring** (System Settings → Privacy & Security → Input Monitoring); tiling needs **Accessibility** as usual.

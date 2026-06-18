@@ -22,7 +22,7 @@ struct ZoneDefinition: Codable, Equatable {
 
 /// Ported from madang's ZonesConfig. Built from the `[zones]` TOML table; bundle assignments
 /// map an app's bundle id to a zone id so its windows auto-tag.
-struct ZonesConfig: Equatable {
+struct ZonesConfig: Codable, Equatable {
     var enabled: Bool
     var layoutMode: ZoneLayoutMode
     var definitions: [ZoneDefinition]
@@ -38,6 +38,29 @@ struct ZonesConfig: Equatable {
         self.layoutMode = layoutMode
         self.definitions = definitions
         self.bundleAssignments = bundleAssignments
+    }
+
+    // Persisted form (~/.config/nehir/zones.json) exposes only the user-editable map + zone names.
+    // `enabled` stays in settings.toml ([general] zonesEnabled); layoutMode isn't user-facing yet
+    // (only the anchor/consecutive model is implemented). Missing keys fall back to defaults.
+    enum CodingKeys: String, CodingKey {
+        case definitions, bundleAssignments
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = false
+        layoutMode = .consecutive
+        definitions = try container.decodeIfPresent([ZoneDefinition].self, forKey: .definitions)
+            ?? ZonesConfig.defaultDefinitions
+        bundleAssignments = try container.decodeIfPresent([String: Int].self, forKey: .bundleAssignments)
+            ?? ZonesConfig.defaultBundleAssignments
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(definitions, forKey: .definitions)
+        try container.encode(bundleAssignments, forKey: .bundleAssignments)
     }
 
     static let defaults = ZonesConfig()

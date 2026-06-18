@@ -108,6 +108,41 @@ import Testing
         #expect(engine.zoneID(forWindowID: "b") == 1)
     }
 
+    @Test func bundleAssignmentIsInitialPlacementOnlyAndManualMovesStick() {
+        // "a" auto-tags to its configured zone 1 on first sight.
+        var engine = twoZoneEngine()
+        #expect(engine.zoneID(forWindowID: "a") == 1)
+
+        // Move it to zone 2 manually, then run another reconcile cycle (same live windows).
+        _ = engine.move(windowID: "a", toZone: 2, orderedWindowIDs: ["a", "b", "c"])
+        _ = engine.reconciledOrder(
+            windows: [
+                ZoneWindow(id: "a", bundleID: "app.one"),
+                ZoneWindow(id: "b", bundleID: "app.one"),
+                ZoneWindow(id: "c", bundleID: "app.two")
+            ],
+            orderedWindowIDs: ["a", "b", "c"]
+        )
+        // Sticky: the manual move survives — config no longer re-forces "a" back to zone 1.
+        #expect(engine.zoneID(forWindowID: "a") == 2)
+    }
+
+    @Test func zonesConfigDecodesCustomAssignmentsAndDefaultsTheRest() throws {
+        let json = #"{ "bundleAssignments": { "com.acme.app": 4 } }"#
+        let config = try JSONDecoder().decode(ZonesConfig.self, from: Data(json.utf8))
+        #expect(config.bundleAssignments == ["com.acme.app": 4]) // user map wins
+        #expect(config.definitions == ZonesConfig.defaultDefinitions) // missing key → defaults
+        #expect(config.enabled == false) // enabled is never read from the file
+    }
+
+    @Test func zonesConfigEncodingOmitsEnabledAndLayoutMode() throws {
+        let data = try JSONEncoder().encode(ZonesConfig(enabled: true, bundleAssignments: ["a": 1]))
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect(object?["enabled"] == nil)
+        #expect(object?["layoutMode"] == nil)
+        #expect((object?["bundleAssignments"] as? [String: Int]) == ["a": 1])
+    }
+
     @Test func prunesStaleTags() {
         var engine = ZoneEngine(
             config: ZonesConfig(

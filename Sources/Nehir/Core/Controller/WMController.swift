@@ -282,7 +282,9 @@ final class WMController {
 
         updateHotkeyBindings(settings.hotkeyBindings)
         setHotkeysEnabled(settings.hotkeysEnabled)
-        zoneEngine.configure(ZonesConfig(enabled: settings.zonesEnabled))
+        var zonesConfig = ZonesConfigStore.loadOrSeed() // definitions + app→zone map from zones.json
+        zonesConfig.enabled = settings.zonesEnabled      // master on/off stays in settings.toml
+        zoneEngine.configure(zonesConfig)
 
         setGapSize(settings.gapSize)
         setOuterGaps(
