@@ -468,6 +468,18 @@ public enum IPCAutomationManifest {
             arguments: [columnIndexArgument]
         ),
         command(
+            ["focus-zone"],
+            name: .focusZone,
+            summary: "Focus a zone by one-based id (jumps to the zone's anchor column).",
+            arguments: [columnIndexArgument]
+        ),
+        command(
+            ["move-window-to-zone"],
+            name: .moveWindowToZone,
+            summary: "Tag the focused window's column to a zone by one-based id and group it there.",
+            arguments: [columnIndexArgument]
+        ),
+        command(
             ["focus-column", "first"],
             name: .focusColumnFirst,
             summary: "Focus the first Niri column."

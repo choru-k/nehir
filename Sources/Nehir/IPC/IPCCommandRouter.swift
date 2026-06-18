@@ -43,6 +43,12 @@ final class IPCCommandRouter {
                 return .invalidArguments
             }
             return controller.commandHandler.performCommand(.focusColumn(zeroBasedIndex))
+        case let .focusZone(zoneIndex):
+            guard zoneIndex >= 1 else { return .invalidArguments }
+            return controller.commandHandler.performCommand(.focusZone(zoneIndex))
+        case let .moveWindowToZone(zoneIndex):
+            guard zoneIndex >= 1 else { return .invalidArguments }
+            return controller.commandHandler.performCommand(.moveWindowToZone(zoneIndex))
         case .focusColumnFirst:
             return controller.commandHandler.performCommand(.focusColumnFirst)
         case .focusColumnLast:

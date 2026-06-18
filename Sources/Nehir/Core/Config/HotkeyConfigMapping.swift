@@ -52,6 +52,13 @@ enum HotkeyConfigMapping {
         ("focus", "windowOrWorkspaceUp", "focusWindowOrWorkspaceUp"),
         ("focus", "columnFirst", "focusColumnFirst"),
         ("focus", "columnLast", "focusColumnLast"),
+        // zones (anchors)
+        ("focus", "zone1", "focusZone.1"),
+        ("focus", "zone2", "focusZone.2"),
+        ("focus", "zone3", "focusZone.3"),
+        ("focus", "zone4", "focusZone.4"),
+        ("focus", "zone5", "focusZone.5"),
+        ("focus", "zone6", "focusZone.6"),
         ("focus", "monitorNext", "focusMonitorNext"),
         ("focus", "monitorPrevious", "focusMonitorPrevious"),
         ("focus", "monitorLast", "focusMonitorLast"),
@@ -76,6 +83,13 @@ enum HotkeyConfigMapping {
         ("move", "consumeOrExpelRight", "consumeOrExpelWindowRight"),
         ("move", "consumeIntoColumn", "consumeWindowIntoColumn"),
         ("move", "expelFromColumn", "expelWindowFromColumn"),
+        // zones (anchors)
+        ("move", "toZone1", "moveWindowToZone.1"),
+        ("move", "toZone2", "moveWindowToZone.2"),
+        ("move", "toZone3", "moveWindowToZone.3"),
+        ("move", "toZone4", "moveWindowToZone.4"),
+        ("move", "toZone5", "moveWindowToZone.5"),
+        ("move", "toZone6", "moveWindowToZone.6"),
         // layout
         ("layout", "toggleFullscreen", "toggleFullscreen"),
         ("layout", "toggleNativeFullscreen", "toggleNativeFullscreen"),

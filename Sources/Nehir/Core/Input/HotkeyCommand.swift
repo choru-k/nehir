@@ -67,7 +67,11 @@ enum HotkeyCommand: Codable, Equatable, Hashable {
     case focusWorkspaceAnywhere(Int)
     case moveWindowToWorkspaceOnMonitor(workspaceIndex: Int, monitorDirection: Direction)
 
+    case focusZone(Int)
+    case moveWindowToZone(Int)
+
     case openCommandPalette
+    case openLeader
 
     case raiseAllFloatingWindows
     case rescueOffscreenWindows

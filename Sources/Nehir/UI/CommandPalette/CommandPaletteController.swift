@@ -52,6 +52,7 @@ enum CommandPaletteSelectionID: Hashable {
     case window(WindowToken)
     case menu(UUID)
     case command(String)
+    case leader(String)
 }
 
 struct CommandPaletteCommandItem: Identifiable {
@@ -158,6 +159,22 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         didSet { handleModeChange(from: oldValue) }
     }
 
+    /// Leader (vim-style) tree state. `leaderMenuStack` is the current path of menu names
+    /// (root first). Loaded fresh from `~/.config/nehir/leader.json` each time leader opens.
+    @Published private(set) var leaderMenuStack: [String] = []
+    private(set) var leaderConfig = LeaderConfig.defaults
+    var leaderConfigProvider: () -> LeaderConfig = { LeaderConfigStore.loadOrSeed() }
+
+    var leaderItems: [LeaderMenuItem] {
+        LeaderNavigator.items(in: leaderConfig, menu: leaderMenuStack.last ?? leaderConfig.rootMenu)
+    }
+
+    var leaderStatusText: String {
+        var crumbs = ["Leader"]
+        for name in leaderMenuStack.dropFirst() { crumbs.append(name.capitalized) }
+        return crumbs.joined(separator: " › ") + " — press a key · esc backs out"
+    }
+
     @Published var selectedItemID: CommandPaletteSelectionID?
     @Published private(set) var windows: [CommandPaletteWindowItem] = [] {
         didSet { updateSelectionAfterFilterChange() }
@@ -246,7 +263,24 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         }
     }
 
-    func show(wmController: WMController) {
+    /// Open (or refocus) the palette directly on the Leader tab, reset to its root menu.
+    /// Honors `leader.json`'s `doubleTapOpensLeader`: when false, opens the normal palette.
+    func toggleLeader(wmController: WMController) {
+        leaderConfig = leaderConfigProvider()
+        guard leaderConfig.doubleTapOpensLeader else {
+            toggle(wmController: wmController)
+            return
+        }
+        if isVisible {
+            selectedMode = .leader
+            leaderMenuStack = [leaderConfig.rootMenu]
+            updateSelectionAfterFilterChange()
+        } else {
+            show(wmController: wmController, mode: .leader)
+        }
+    }
+
+    func show(wmController: WMController, mode: CommandPaletteMode? = nil) {
         if isVisible {
             dismiss(reason: .superseded)
         }
@@ -274,8 +308,17 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
 
         positionPanel(panel)
 
-        let preferredMode = wmController.settings.commandPaletteLastMode
-        selectedMode = resolvedInitialMode(preferredMode)
+        leaderConfig = leaderConfigProvider()
+        if let mode {
+            selectedMode = isModeAvailable(mode) ? mode : .windows
+        } else {
+            let preferredMode = wmController.settings.commandPaletteLastMode
+            selectedMode = resolvedInitialMode(preferredMode)
+        }
+        if selectedMode == .leader {
+            leaderMenuStack = [leaderConfig.rootMenu]
+            selectedItemID = currentSelectionList().first
+        }
 
         installEventMonitor()
 
@@ -308,6 +351,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             InlineHint(title: mode.displayName, shortcut: "⌘2")
         case .commands:
             InlineHint(title: mode.displayName, shortcut: "⌘3")
+        case .leader:
+            InlineHint(title: mode.displayName, shortcut: "⌘4")
         }
     }
 
@@ -371,6 +416,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         if selectedMode == .menu {
             loadMenuItemsIfNeeded()
         }
+        if selectedMode == .leader {
+            leaderMenuStack = [leaderConfig.rootMenu]
+        }
         updateSelectionAfterFilterChange()
         DispatchQueue.main.async { [weak self] in
             self?.focusSearchField()
@@ -388,6 +436,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         case .menu:
             return isMenuModeAvailable
         case .commands:
+            return true
+        case .leader:
             return true
         }
     }
@@ -706,6 +756,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             return true
         }
 
+        if selectedMode == .leader {
+            return handleLeaderKeyDown(event, modifiers: relevantModifiers)
+        }
+
         switch event.keyCode {
         case 53:
             dismiss(reason: .cancel)
@@ -738,6 +792,80 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             return modifierFlags == .shift ? .alternate : .primary
         default:
             return nil
+        }
+    }
+
+    private func handleLeaderKeyDown(_ event: NSEvent, modifiers: NSEvent.ModifierFlags) -> Bool {
+        switch event.keyCode {
+        case 53, 51: // escape, delete — back out one level (or dismiss at root)
+            leaderPopOrDismiss()
+            return true
+        case 126:
+            moveSelection(by: -1)
+            return true
+        case 125:
+            moveSelection(by: 1)
+            return true
+        case 36, 76: // return — activate the highlighted row
+            if case let .leader(key)? = selectedItemID {
+                activateLeaderKey(key)
+            }
+            return true
+        default:
+            // A single printable key (shift allowed for H/L); ⌘/⌥/⌃ are not leader keys.
+            guard !modifiers.contains(.command),
+                  !modifiers.contains(.control),
+                  !modifiers.contains(.option),
+                  let characters = event.charactersIgnoringModifiers,
+                  characters.count == 1
+            else {
+                return false
+            }
+            activateLeaderKey(characters)
+            return true
+        }
+    }
+
+    private func leaderPopOrDismiss() {
+        if leaderMenuStack.count > 1 {
+            leaderMenuStack.removeLast()
+            selectedItemID = currentSelectionList().first
+        } else {
+            dismiss(reason: .cancel)
+        }
+    }
+
+    func activateLeaderKey(_ key: String) {
+        let menu = leaderMenuStack.last ?? leaderConfig.rootMenu
+        switch LeaderNavigator.resolve(config: leaderConfig, menu: menu, key: key) {
+        case let .descend(submenu):
+            leaderMenuStack.append(submenu)
+            selectedItemID = currentSelectionList().first
+        case let .run(item):
+            let wmController = wmController
+            dismiss(reason: .selection)
+            dispatchLeaderItem(item, wmController: wmController)
+        case .none:
+            break
+        }
+    }
+
+    private func dispatchLeaderItem(_ item: LeaderMenuItem, wmController: WMController?) {
+        if let actionId = item.action, let command = ActionCatalog.spec(for: actionId)?.command {
+            wmController?.commandHandler.handleCommand(command)
+            return
+        }
+        if let bundleID = item.app {
+            activateApp(bundleID: bundleID)
+        }
+    }
+
+    private func activateApp(bundleID: String) {
+        let workspace = NSWorkspace.shared
+        if let app = workspace.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) {
+            app.activate(options: [])
+        } else if let url = workspace.urlForApplication(withBundleIdentifier: bundleID) {
+            workspace.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
     }
 
@@ -805,6 +933,9 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
         case "3":
             selectedMode = .commands
             return true
+        case "4":
+            selectedMode = .leader
+            return true
         default:
             return false
         }
@@ -846,6 +977,10 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
                 return nil
             }
             return .executeCommand(wmController, item.command)
+        case .leader:
+            // Leader dispatches on single keypress (and Enter on the selected row), not via the
+            // generic selection-action path.
+            return nil
         }
     }
 
@@ -926,6 +1061,8 @@ final class CommandPaletteController: NSObject, ObservableObject, NSWindowDelega
             return filteredMenuItems.map { CommandPaletteSelectionID.menu($0.id) }
         case .commands:
             return filteredCommandItems.map { CommandPaletteSelectionID.command($0.id) }
+        case .leader:
+            return leaderItems.map { CommandPaletteSelectionID.leader($0.key) }
         }
     }
 
@@ -1070,18 +1207,20 @@ private struct CommandPaletteView: View {
                     onSelect: { controller.selectedMode = $0 }
                 )
 
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField(searchPlaceholder, text: $controller.searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 18))
-                    if !controller.searchText.isEmpty {
-                        Button(action: { controller.searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
+                if controller.selectedMode != .leader {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
+                        TextField(searchPlaceholder, text: $controller.searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 18))
+                        if !controller.searchText.isEmpty {
+                            Button(action: { controller.searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
 
@@ -1147,6 +1286,15 @@ private struct CommandPaletteView: View {
                                         controller.selectCurrent()
                                     }
                                 }
+                            case .leader:
+                                ForEach(controller.leaderItems, id: \.key) { item in
+                                    CommandPaletteLeaderRow(
+                                        item: item,
+                                        isSelected: controller.selectedItemID == .leader(item.key)
+                                    )
+                                    .id(CommandPaletteSelectionID.leader(item.key))
+                                    .onTapGesture { controller.activateLeaderKey(item.key) }
+                                }
                             }
                         }
                     }
@@ -1173,6 +1321,8 @@ private struct CommandPaletteView: View {
             "Search menu items..."
         case .commands:
             "Search commands..."
+        case .leader:
+            ""
         }
     }
 
@@ -1186,6 +1336,8 @@ private struct CommandPaletteView: View {
             controller.menuStatusText
         case .commands:
             "Enter executes the selected command."
+        case .leader:
+            controller.leaderStatusText
         }
     }
 
@@ -1198,6 +1350,8 @@ private struct CommandPaletteView: View {
                 (!controller.isMenuModeAvailable || controller.filteredMenuItems.isEmpty)
         case .commands:
             controller.filteredCommandItems.isEmpty
+        case .leader:
+            controller.leaderItems.isEmpty
         }
     }
 
@@ -1209,6 +1363,8 @@ private struct CommandPaletteView: View {
             controller.isMenuModeAvailable ? "text.magnifyingglass" : "menubar.rectangle"
         case .commands:
             "text.magnifyingglass"
+        case .leader:
+            "command"
         }
     }
 
@@ -1223,6 +1379,8 @@ private struct CommandPaletteView: View {
             return controller.searchText.isEmpty ? "No menu items available" : "No menu items found"
         case .commands:
             return controller.searchText.isEmpty ? "No commands available" : "No commands found"
+        case .leader:
+            return "This leader menu is empty"
         }
     }
 }
@@ -1481,6 +1639,32 @@ private struct CommandPaletteCommandRow: View {
 
             if let binding = item.bindingDisplay {
                 CommandPaletteShortcutBadge(text: binding)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct CommandPaletteLeaderRow: View {
+    let item: LeaderMenuItem
+    let isSelected: Bool
+
+    private var isFolder: Bool { item.menu != nil }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CommandPaletteShortcutBadge(text: item.key, prominent: true)
+            Text(item.title)
+                .font(.system(size: 14, weight: .medium))
+                .lineLimit(1)
+            Spacer()
+            if isFolder {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal, 16)

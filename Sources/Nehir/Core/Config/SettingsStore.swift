@@ -259,6 +259,18 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var f15Enabled = SettingsStore.defaultExport.f15Enabled {
+        didSet { scheduleSave() }
+    }
+
+    var f15DoubleTapSeconds = SettingsStore.defaultExport.f15DoubleTapSeconds {
+        didSet { scheduleSave() }
+    }
+
+    var zonesEnabled = SettingsStore.defaultExport.zonesEnabled {
+        didSet { scheduleSave() }
+    }
+
     var scrollGestureEnabled = SettingsStore.defaultExport.scrollGestureEnabled {
         didSet { scheduleSave() }
     }
@@ -388,6 +400,9 @@ final class SettingsStore {
     func toExport() -> SettingsExport {
         SettingsExport(
             hotkeysEnabled: hotkeysEnabled,
+            f15Enabled: f15Enabled,
+            f15DoubleTapSeconds: f15DoubleTapSeconds,
+            zonesEnabled: zonesEnabled,
             focusFollowsMouse: focusFollowsMouse,
             moveMouseToFocusedWindow: moveMouseToFocusedWindow,
             focusFollowsWindowToMonitor: focusFollowsWindowToMonitor,
@@ -459,6 +474,9 @@ final class SettingsStore {
         defer { isApplyingExport = false }
 
         hotkeysEnabled = export.hotkeysEnabled
+        f15Enabled = export.f15Enabled
+        f15DoubleTapSeconds = export.f15DoubleTapSeconds
+        zonesEnabled = export.zonesEnabled
         focusFollowsMouse = export.focusFollowsMouse
         moveMouseToFocusedWindow = export.moveMouseToFocusedWindow
         focusFollowsWindowToMonitor = export.focusFollowsWindowToMonitor

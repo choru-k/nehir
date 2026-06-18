@@ -98,6 +98,10 @@ final class WMController {
     let settings: SettingsStore
     let workspaceManager: WorkspaceManager
     private let hotkeys = HotkeyCenter()
+    private let f15Tap = F15EventTap()
+    /// Zone (anchor) state over the single column strip. ponytail: one engine, keyed by window
+    /// token; current zone is global. See ZoneEngine.
+    var zoneEngine = ZoneEngine()
     let lockScreenObserver = LockScreenObserver()
     var isLockScreenActive: Bool = false {
         didSet {
@@ -227,6 +231,9 @@ final class WMController {
         hotkeys.onCommand = { [weak self] command in
             self?.commandHandler.handleHotkeyCommand(command)
         }
+        f15Tap.onCommand = { [weak self] command in
+            self?.commandHandler.handleHotkeyCommand(command)
+        }
         tabbedOverlayManager.onSelect = { [weak self] workspaceId, columnId, visualIndex in
             self?.layoutRefreshController.selectTabInNiri(
                 workspaceId: workspaceId,
@@ -275,6 +282,7 @@ final class WMController {
 
         updateHotkeyBindings(settings.hotkeyBindings)
         setHotkeysEnabled(settings.hotkeysEnabled)
+        zoneEngine.configure(ZonesConfig(enabled: settings.zonesEnabled))
 
         setGapSize(settings.gapSize)
         setOuterGaps(
@@ -378,6 +386,12 @@ final class WMController {
             && hasStartedServices
         hotkeysEnabled = shouldEnableHotkeys
         shouldEnableHotkeys ? hotkeys.start() : hotkeys.stop()
+
+        if shouldEnableHotkeys, settings.f15Enabled {
+            f15Tap.configure(enabled: true, doubleTapSeconds: settings.f15DoubleTapSeconds)
+        } else {
+            f15Tap.remove()
+        }
     }
 
     func setGapSize(_ size: Double) {
@@ -3303,6 +3317,10 @@ final class WMController {
 
     func openCommandPalette() {
         commandPaletteController.toggle(wmController: self)
+    }
+
+    func openLeaderPalette() {
+        commandPaletteController.toggleLeader(wmController: self)
     }
 
     func openMenuAnywhere() {

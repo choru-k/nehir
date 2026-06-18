@@ -33,10 +33,14 @@ struct CanonicalTOMLConfig: Codable, Equatable {
         var preventSleepEnabled: Bool
         var ipcEnabled: Bool
         var developerModeEnabled: Bool
+        var f15Enabled: Bool
+        var f15DoubleTapSeconds: Double
+        var zonesEnabled: Bool
         var unknownFields: [String: SettingsTOMLUnknownValue] = [:]
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case hotkeysEnabled, preventSleepEnabled, ipcEnabled, developerModeEnabled
+            case f15Enabled, f15DoubleTapSeconds, zonesEnabled
         }
     }
 
@@ -229,6 +233,9 @@ extension CanonicalTOMLConfig {
             preventSleepEnabled: export.preventSleepEnabled,
             ipcEnabled: export.ipcEnabled,
             developerModeEnabled: export.developerModeEnabled,
+            f15Enabled: export.f15Enabled,
+            f15DoubleTapSeconds: export.f15DoubleTapSeconds,
+            zonesEnabled: export.zonesEnabled,
             unknownFields: unknown["general"] ?? [:]
         )
         focus = Focus(
@@ -343,6 +350,9 @@ extension CanonicalTOMLConfig {
 
         return SettingsExport(
             hotkeysEnabled: general.hotkeysEnabled,
+            f15Enabled: general.f15Enabled,
+            f15DoubleTapSeconds: general.f15DoubleTapSeconds,
+            zonesEnabled: general.zonesEnabled,
             focusFollowsMouse: focus.followsMouse,
             moveMouseToFocusedWindow: focus.moveMouseToFocusedWindow,
             focusFollowsWindowToMonitor: focus.followsWindowToMonitor,
@@ -449,6 +459,9 @@ extension CanonicalTOMLConfig.General {
         preventSleepEnabled = try container.decodeWithDefault(Bool.self, forKey: .preventSleepEnabled, default: d.preventSleepEnabled)
         ipcEnabled = try container.decodeWithDefault(Bool.self, forKey: .ipcEnabled, default: d.ipcEnabled)
         developerModeEnabled = try container.decodeWithDefault(Bool.self, forKey: .developerModeEnabled, default: d.developerModeEnabled)
+        f15Enabled = try container.decodeWithDefault(Bool.self, forKey: .f15Enabled, default: d.f15Enabled)
+        f15DoubleTapSeconds = try container.decodeWithDefault(Double.self, forKey: .f15DoubleTapSeconds, default: d.f15DoubleTapSeconds)
+        zonesEnabled = try container.decodeWithDefault(Bool.self, forKey: .zonesEnabled, default: d.zonesEnabled)
         unknownFields = try SettingsTOMLUnknownValue.decodeUnknownFields(from: decoder, excluding: CodingKeys.self)
     }
 
@@ -458,6 +471,9 @@ extension CanonicalTOMLConfig.General {
         try container.encode(preventSleepEnabled, forKey: "preventSleepEnabled")
         try container.encode(ipcEnabled, forKey: "ipcEnabled")
         try container.encode(developerModeEnabled, forKey: "developerModeEnabled")
+        try container.encode(f15Enabled, forKey: "f15Enabled")
+        try container.encode(f15DoubleTapSeconds, forKey: "f15DoubleTapSeconds")
+        try container.encode(zonesEnabled, forKey: "zonesEnabled")
         try container.encodeUnknownFields(unknownFields)
     }
 }

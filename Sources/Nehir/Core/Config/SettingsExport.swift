@@ -12,6 +12,9 @@ struct SettingsColor: Codable, Equatable, Sendable {
 
 struct SettingsExport: Equatable, Sendable {
     var hotkeysEnabled: Bool
+    var f15Enabled: Bool
+    var f15DoubleTapSeconds: Double
+    var zonesEnabled: Bool
     var focusFollowsMouse: Bool
     var moveMouseToFocusedWindow: Bool
     var focusFollowsWindowToMonitor: Bool
@@ -96,6 +99,9 @@ extension SettingsExport {
     static func defaults() -> SettingsExport {
         SettingsExport(
             hotkeysEnabled: true,
+            f15Enabled: false,
+            f15DoubleTapSeconds: 0.3,
+            zonesEnabled: false,
             focusFollowsMouse: false,
             moveMouseToFocusedWindow: false,
             focusFollowsWindowToMonitor: false,

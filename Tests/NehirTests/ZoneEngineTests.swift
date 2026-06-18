@@ -1,0 +1,207 @@
+import Foundation
+@testable import Nehir
+import Testing
+
+@Suite struct ZoneEngineTests {
+    private func twoZoneEngine() -> ZoneEngine {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one"), ZoneDefinition(id: 2, name: "two")],
+                bundleAssignments: ["app.one": 1, "app.two": 2]
+            )
+        )
+        _ = engine.reconciledOrder(
+            windows: [
+                ZoneWindow(id: "a", bundleID: "app.one"),
+                ZoneWindow(id: "b", bundleID: "app.one"),
+                ZoneWindow(id: "c", bundleID: "app.two")
+            ],
+            orderedWindowIDs: ["a", "b", "c"]
+        )
+        return engine
+    }
+
+    @Test func autoTagsAndPositionallyTagsUnknownWindows() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one"), ZoneDefinition(id: 2, name: "two")],
+                bundleAssignments: ["app.two": 2, "app.one": 1]
+            )
+        )
+        let order = engine.reconciledOrder(
+            windows: [
+                ZoneWindow(id: "b", bundleID: "app.two"),
+                ZoneWindow(id: "a", bundleID: "app.one"),
+                ZoneWindow(id: "c", bundleID: "app.unknown")
+            ],
+            orderedWindowIDs: ["b", "c", "a"]
+        )
+        #expect(order == ["a", "b", "c"])
+        #expect(engine.zoneID(forWindowID: "a") == 1)
+        #expect(engine.zoneID(forWindowID: "b") == 2)
+        #expect(engine.zoneID(forWindowID: "c") == 2)
+        #expect(engine.state.positionInferredWindowIDs == ["c"])
+    }
+
+    @Test func positionallyTagsUnknownWindowsByNearestAnchor() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one"), ZoneDefinition(id: 2, name: "two")],
+                bundleAssignments: ["app.one": 1, "app.two": 2]
+            )
+        )
+        _ = engine.reconciledOrder(
+            windows: [
+                ZoneWindow(id: "a", bundleID: "app.one"),
+                ZoneWindow(id: "x", bundleID: "app.unknown"),
+                ZoneWindow(id: "y", bundleID: "app.unknown"),
+                ZoneWindow(id: "b", bundleID: "app.two")
+            ],
+            orderedWindowIDs: ["a", "x", "y", "b"]
+        )
+        #expect(engine.zoneID(forWindowID: "x") == 1)
+        #expect(engine.zoneID(forWindowID: "y") == 2)
+    }
+
+    @Test func preservesOriginalOrderInsideZone() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one")],
+                bundleAssignments: ["app.one": 1]
+            )
+        )
+        let order = engine.reconciledOrder(
+            windows: [ZoneWindow(id: "a", bundleID: "app.one"), ZoneWindow(id: "b", bundleID: "app.one")],
+            orderedWindowIDs: ["b", "a"]
+        )
+        #expect(order == ["b", "a"])
+    }
+
+    @Test func sortedOrderHandlesDuplicateOrderedIDsWithoutTrapping() {
+        let engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one"), ZoneDefinition(id: 2, name: "two")],
+                bundleAssignments: [:]
+            ),
+            state: ZoneState(windowZoneTags: ["a": 2, "b": 1])
+        )
+        #expect(engine.sortedOrder(orderedWindowIDs: ["a", "a", "b"]) == ["b", "a"])
+    }
+
+    @Test func moveWindowToZoneUpdatesStateAndSorts() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one"), ZoneDefinition(id: 2, name: "two")],
+                bundleAssignments: [:]
+            ),
+            state: ZoneState(windowZoneTags: ["a": 2, "b": 2])
+        )
+        let order = engine.move(windowID: "b", toZone: 1, orderedWindowIDs: ["a", "b"])
+        #expect(order == ["b", "a"])
+        #expect(engine.state.currentZone == 1)
+        #expect(engine.zoneID(forWindowID: "b") == 1)
+    }
+
+    @Test func prunesStaleTags() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [ZoneDefinition(id: 1, name: "one")],
+                bundleAssignments: [:]
+            ),
+            state: ZoneState(windowZoneTags: ["gone": 1, "keep": 1])
+        )
+        _ = engine.reconciledOrder(
+            windows: [ZoneWindow(id: "keep", bundleID: "app.keep")],
+            orderedWindowIDs: ["keep"]
+        )
+        #expect(engine.state.windowZoneTags == ["keep": 1])
+    }
+
+    @Test func disabledZonesLeaveOrderUnchanged() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: false,
+                definitions: [ZoneDefinition(id: 1, name: "one")],
+                bundleAssignments: ["app.one": 1]
+            )
+        )
+        let order = engine.reconciledOrder(
+            windows: [ZoneWindow(id: "a", bundleID: "app.one")],
+            orderedWindowIDs: ["b", "a"]
+        )
+        #expect(order == ["b", "a"])
+        #expect(engine.zoneID(forWindowID: "a") == nil)
+    }
+
+    @Test func focusAndCycleZoneTargetsUseCurrentZone() {
+        var engine = ZoneEngine(
+            config: ZonesConfig(
+                enabled: true,
+                definitions: [
+                    ZoneDefinition(id: 1, name: "one"),
+                    ZoneDefinition(id: 2, name: "two"),
+                    ZoneDefinition(id: 3, name: "three")
+                ],
+                bundleAssignments: [:]
+            ),
+            state: ZoneState(currentZone: 1, windowZoneTags: ["a": 1, "c": 3])
+        )
+        #expect(engine.focusTarget(zoneID: 3, orderedWindowIDs: ["a", "c"]) == "c")
+        engine.updateCurrentZone(focusedWindowID: "a")
+        let next = engine.nextZoneTarget(direction: 1, orderedWindowIDs: ["a", "c"])
+        #expect(next?.zoneID == 3)
+        #expect(next?.windowID == "c")
+    }
+
+    @Test func restoredFocusReturnsRememberedWindowWhenStillLiveAndTagged() {
+        var engine = twoZoneEngine()
+        engine.rememberFocus(windowID: "b", inZone: 1)
+        #expect(engine.restoredFocusTarget(forZone: 1, orderedWindowIDs: ["a", "b", "c"]) == "b")
+    }
+
+    @Test func restoredFocusFallsBackToFirstWindowWhenRememberedGone() {
+        var engine = twoZoneEngine()
+        engine.rememberFocus(windowID: "b", inZone: 1)
+        #expect(engine.restoredFocusTarget(forZone: 1, orderedWindowIDs: ["a", "c"]) == "a")
+    }
+
+    @Test func restoredFocusFallsBackWhenRememberedWindowRetagged() {
+        var engine = twoZoneEngine()
+        engine.rememberFocus(windowID: "b", inZone: 1)
+        _ = engine.move(windowID: "b", toZone: 2, orderedWindowIDs: ["a", "b", "c"])
+        #expect(engine.restoredFocusTarget(forZone: 1, orderedWindowIDs: ["a", "b", "c"]) == "a")
+    }
+
+    @Test func setCurrentZoneRejectsInvalidID() {
+        var engine = twoZoneEngine()
+        engine.setCurrentZone(2)
+        #expect(engine.state.currentZone == 2)
+        engine.setCurrentZone(99)
+        #expect(engine.state.currentZone == 2)
+    }
+
+    @Test func focusedWindowByZoneSurvivesEncodeDecode() throws {
+        var engine = twoZoneEngine()
+        engine.rememberFocus(windowID: "b", inZone: 1)
+        let data = try JSONEncoder().encode(engine.state)
+        let decoded = try JSONDecoder().decode(ZoneState.self, from: data)
+        #expect(decoded.focusedWindowIDByZone[1] == "b")
+    }
+
+    @Test func reconcilePrunesDeadPerZoneFocus() {
+        var engine = twoZoneEngine()
+        engine.rememberFocus(windowID: "b", inZone: 1)
+        _ = engine.reconciledOrder(
+            windows: [ZoneWindow(id: "a", bundleID: "app.one")],
+            orderedWindowIDs: ["a"]
+        )
+        #expect(engine.state.focusedWindowIDByZone[1] == nil)
+    }
+}

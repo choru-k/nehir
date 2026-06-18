@@ -28,9 +28,12 @@ top = 0.0
 
 [general]
 developerModeEnabled = false
+f15DoubleTapSeconds = 0.3
+f15Enabled = false
 hotkeysEnabled = true
 ipcEnabled = false
 preventSleepEnabled = false
+zonesEnabled = false
 
 [gestures]
 fingerCount = 3
