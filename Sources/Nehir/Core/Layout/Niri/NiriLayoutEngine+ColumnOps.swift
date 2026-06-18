@@ -885,7 +885,8 @@ extension NiriLayoutEngine {
         motion: MotionSnapshot,
         state: inout ViewportState,
         workingFrame: CGRect,
-        gaps: CGFloat
+        gaps: CGFloat,
+        keepFocusOn focusToken: WindowToken? = nil
     ) -> Bool {
         let cols = columns(in: workspaceId)
         guard cols.count > 1 else { return false }
@@ -894,10 +895,11 @@ extension NiriLayoutEngine {
         let target = zoneEngine.reconciledOrder(windows: windows, orderedWindowIDs: order)
         guard target != order else { return false }
 
-        let focusedAnchor = state.selectedNodeId
-            .flatMap { findNode(by: $0) }
-            .flatMap { column(of: $0) }
-            .map { Self.zoneAnchorID($0) }
+        // Keep the viewport on the window the pass intends to focus (explicit token wins, else the
+        // current selection), re-pinning its column index after the reorder.
+        let focusedColumn = focusToken.flatMap { findNode(for: $0) }.flatMap { column(of: $0) }
+            ?? state.selectedNodeId.flatMap { findNode(by: $0) }.flatMap { column(of: $0) }
+        let focusedAnchor = focusedColumn.map { Self.zoneAnchorID($0) }
 
         for targetIdx in target.indices {
             let desiredID = target[targetIdx]
